@@ -1,1 +1,47 @@
 .aider*
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Expo
+.expo/
+dist/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Build outputs
+web-build/
+*.apk
+*.aab
+*.ipa
+
+# IDE files
+.idea/
+*.iml
+*.vs/
+*.vscode/
+*.DS_Store
+*.AppleDouble
+*.LSOverride
+
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
