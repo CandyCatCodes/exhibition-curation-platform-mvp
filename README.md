@@ -49,8 +49,8 @@ A platform where users can explore virtual exhibitions from combined collections
 ## Features
 
 - [ ] Search artworks across collections (min. 2 APIs)
-- [ ] Browse artworks with pagination
+- [x] Browse artworks with pagination
 - [ ] Filter and/or sort artworks
-- [ ] Display artwork details
+- [x] Display artwork details
 - [ ] Add/remove items to/from temporary exhibitions
 - [ ] View saved exhibitions
