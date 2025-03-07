@@ -48,8 +48,8 @@ A platform where users can explore virtual exhibitions from combined collections
 
 ## Features
 
-- [ ] Search artworks across collections (min. 2 APIs)
-- [x] Browse artworks with pagination
+- [x] Browse artworks across collections (AIC & Harvard) - Basic source selection implemented.
+- [x] Browse artworks with pagination (Single source only for now - AIC/Harvard)
 - [ ] Filter and/or sort artworks
 - [x] Display artwork details
 - [ ] Add/remove items to/from temporary exhibitions

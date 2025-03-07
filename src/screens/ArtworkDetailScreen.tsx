@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, Button } from 'react-native';
+// Import Linking for opening URLs and Platform
+import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, Button, Linking, Platform } from 'react-native';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/types';
-import { getArtworkDetails, getImageUrl, ArtworkDetail } from '../services/api'; // Import new function and type
+// Import unified types and updated service function
+import { getArtworkDetails, UnifiedArtworkDetail } from '../services/api';
 
 type ArtworkDetailScreenRouteProp = RouteProp<RootStackParamList, 'ArtworkDetail'>;
 
@@ -21,30 +23,46 @@ const HtmlRenderer = ({ html }: { html: string | null }) => {
 
 
 export default function ArtworkDetailScreen({ route }: Props) {
+  // artworkId is now the prefixed ID, e.g., "aic-123" or "ham-456"
   const { artworkId } = route.params;
-  const [artwork, setArtwork] = useState<ArtworkDetail | null>(null);
+  const [artwork, setArtwork] = useState<UnifiedArtworkDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [iiifUrl, setIiifUrl] = useState<string>(''); // Store the base image URL
+  // No need for iiifUrl state here anymore, imageUrl is in UnifiedArtworkDetail
 
   useEffect(() => {
     const loadDetails = async () => {
+      console.log(`Loading details for prefixed ID: ${artworkId}`);
       setLoading(true);
-      setError(null);
+      setError(null); // Clear previous errors
+      setArtwork(null); // Clear previous artwork data
       try {
-        const response = await getArtworkDetails(artworkId);
-        setArtwork(response.data);
-        setIiifUrl(response.config.iiif_url);
+        // Use the updated service function that handles prefixed IDs
+        const details = await getArtworkDetails(artworkId);
+        setArtwork(details);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+         console.error(`Error loading details for ${artworkId}:`, err);
+         const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+         if (errorMessage.includes("API Key is missing")) {
+             setError(`${errorMessage} Check .env and restart.`);
+         } else {
+             setError(errorMessage);
+         }
         setArtwork(null);
       } finally {
         setLoading(false);
       }
     };
 
-    loadDetails();
-  }, [artworkId]); // Reload if artworkId changes
+    // Ensure artworkId is valid before attempting to load
+    if (artworkId) {
+        loadDetails();
+    } else {
+        setError("Artwork ID is missing.");
+        setLoading(false);
+    }
+
+  }, [artworkId]); // Reload if prefixed artworkId changes
 
   if (loading) {
     return (
@@ -72,7 +90,17 @@ export default function ArtworkDetailScreen({ route }: Props) {
     );
   }
 
-  const imageUrl = getImageUrl(artwork.image_id, iiifUrl);
+  // Use artwork.imageUrl directly from the unified structure
+  const imageUrl = artwork?.imageUrl; // Use optional chaining
+
+  const openSourceUrl = () => {
+      if (artwork?.sourceApiUrl) {
+          Linking.openURL(artwork.sourceApiUrl).catch(err => {
+              console.error("Couldn't load page", err);
+              alert('Could not open the link.'); // User feedback
+          });
+      }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
@@ -83,13 +111,15 @@ export default function ArtworkDetailScreen({ route }: Props) {
       )}
 
       <Text style={styles.title}>{artwork.title || 'Untitled'}</Text>
-      <Text style={styles.artist}>{artwork.artist_title || 'Unknown Artist'}</Text>
+      <Text style={styles.artist}>{artwork.artist || 'Unknown Artist'}</Text>
+      {/* Display source prominently */}
+      <Text style={styles.sourceText}>Source: {artwork.source?.toUpperCase()}</Text>
 
-      {artwork.date_display && <Text style={styles.detailLabel}>Date:</Text>}
-      {artwork.date_display && <Text style={styles.detailText}>{artwork.date_display}</Text>}
+      {artwork.date && <Text style={styles.detailLabel}>Date:</Text>}
+      {artwork.date && <Text style={styles.detailText}>{artwork.date}</Text>}
 
-      {artwork.medium_display && <Text style={styles.detailLabel}>Medium:</Text>}
-      {artwork.medium_display && <Text style={styles.detailText}>{artwork.medium_display}</Text>}
+      {artwork.medium && <Text style={styles.detailLabel}>Medium:</Text>}
+      {artwork.medium && <Text style={styles.detailText}>{artwork.medium}</Text>}
 
       {artwork.dimensions && <Text style={styles.detailLabel}>Dimensions:</Text>}
       {artwork.dimensions && <Text style={styles.detailText}>{artwork.dimensions}</Text>}
@@ -97,6 +127,14 @@ export default function ArtworkDetailScreen({ route }: Props) {
       {artwork.description && <Text style={styles.detailLabel}>Description:</Text>}
       {/* Use a simple renderer for now. Replace with a proper HTML renderer later if needed. */}
       <HtmlRenderer html={artwork.description} />
+
+      {/* Link to original source if available */}
+      {artwork.sourceApiUrl && (
+          <View style={styles.linkContainer}>
+              <Button title={`View on ${artwork.source?.toUpperCase()} Website`} onPress={openSourceUrl} />
+          </View>
+      )}
+
 
       {/* TODO: Add/Remove from exhibition button will go here */}
       <View style={styles.buttonContainer}>
@@ -158,8 +196,14 @@ const styles = StyleSheet.create({
     color: 'red',
     fontSize: 16,
   },
+  linkContainer: {
+      marginTop: 15,
+      marginBottom: 10, // Add margin below link button
+      alignItems: 'flex-start', // Align button to the left
+  },
   buttonContainer: {
       marginTop: 20,
-      marginBottom: 20,
+      marginBottom: 40, // Add more space at the bottom
+      alignItems: 'flex-start', // Align button to the left
   }
 });
