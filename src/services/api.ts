@@ -46,19 +46,135 @@ interface AicApiResponse {
     current_page: number;
     next_url: string | null;
   };
-  data: Artwork[];
+  data: AicArtwork[]; // Changed Artwork[] to AicArtwork[]
   config: {
     iiif_url: string; // Base URL for images
   };
 }
 
+
+// --- HAM Specific Types ---
+interface HamPerson {
+    name: string;
+    role: string;
+    personid: number;
+}
+
+interface HamImage {
+    imageid: number;
+    baseimageurl: string; // Use this for basic image display
+    iiifbaseuri?: string; // Optional IIIF
+    width: number;
+    height: number;
+    publiccaption: string | null;
+    displayorder: number;
+}
+
+interface HamArtworkRecord {
+    id: number;
+    objectid: number; // Use this as the primary ID? API docs use objectid in URLs
+    objectnumber: string;
+    title: string;
+    people: HamPerson[] | null;
+    dated: string | null;
+    culture: string | null;
+    medium: string | null;
+    dimensions: string | null;
+    description: string | null;
+    primaryimageurl: string | null; // Often same as images[0].baseimageurl
+    images: HamImage[] | null;
+    url: string; // Link back to HAM website record
+    // Add other fields as needed
+}
+
+interface HamInfo {
+    totalrecordsperquery: number;
+    totalrecords: number;
+    pages: number;
+    page: number;
+    next?: string; // URL for next page
+    prev?: string; // URL for prev page
+}
+
+interface HamApiResponse {
+    info: HamInfo;
+    records: HamArtworkRecord[];
+}
+
+// HAM Detail response is just a single record (no 'data' wrapper like AIC)
+type HamApiDetailResponse = HamArtworkRecord;
+
+
+// --- Helper Functions ---
+
+/**
+ * Constructs the full image URL for an AIC artwork.
+ * @param imageId - The image_id from the artwork data.
+ * @param iiifUrl - The base IIIF URL from the API config.
+ * @returns The full image URL string.
+ */
+const getAicImageUrl = (imageId: string | null, iiifUrl: string): string | null => {
+  if (!imageId || !iiifUrl) {
+    return null;
+  }
+  // Use a reasonable size for both list and detail for simplicity now
+  return `${iiifUrl}/${imageId}/full/843,/0/default.jpg`;
+};
+
+/**
+ * Gets the primary image URL for a HAM artwork, potentially resizing.
+ * @param artwork - The HAM artwork record.
+ * @returns The image URL string or null.
+ */
+const getHamImageUrl = (artwork: HamArtworkRecord): string | null => {
+    let baseUrl = artwork.primaryimageurl;
+    // Fallback to the first image in the images array if primary is missing
+    if (!baseUrl && artwork.images && artwork.images.length > 0) {
+        // Sort by displayorder just in case, though primary should be first
+        const sortedImages = [...artwork.images].sort((a, b) => a.displayorder - b.displayorder);
+        baseUrl = sortedImages[0].baseimageurl;
+    }
+
+    if (!baseUrl) {
+        return null;
+    }
+
+    // Add resizing parameters (e.g., width=800) - adjust size as needed
+    // Check if URL already has query params
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    return `${baseUrl}${separator}width=800`; // Request 800px width
+};
+
+
+// --- Mapping Functions ---
+
+const mapAicToUnified = (item: AicArtwork, iiifUrl: string): UnifiedArtwork => ({
+    id: `aic-${item.id}`,
+    title: item.title || 'Untitled',
+    artist: item.artist_title || null,
+    imageUrl: getAicImageUrl(item.image_id, iiifUrl),
+    source: 'aic',
+});
+
+const mapHamToUnified = (item: HamArtworkRecord): UnifiedArtwork => ({
+    id: `ham-${item.objectid}`, // Use objectid as it's used in detail URLs
+    title: item.title || 'Untitled',
+    // Find the primary artist (often role "Artist")
+    artist: item.people?.find(p => p.role === 'Artist')?.name || item.people?.[0]?.name || null,
+    imageUrl: getHamImageUrl(item),
+    source: 'ham',
+});
+
+
+// --- API Fetching Functions (Internal) ---
+
 /**
  * Fetches a list of artworks from the AIC API.
  * @param page - The page number to fetch.
  * @param limit - The number of items per page.
- * @returns Promise resolving to the API response structure.
+ * @returns Promise resolving to the AIC API response structure.
  */
-export const getArtworks = async (page: number = 1, limit: number = 10): Promise<ApiResponse> => {
+const getAicArtworks = async (page: number = 1, limit: number = 10): Promise<AicApiResponse> => {
   // Construct the query URL
   // Fetch only public domain artworks with images for now
   // Request specific fields to reduce payload size
@@ -162,12 +278,35 @@ interface AicApiDetailResponse {
   };
 }
 
+// --- Mapping Functions for Details ---
+
+const mapAicDetailToUnified = (item: AicArtworkDetail, iiifUrl: string): UnifiedArtworkDetail => ({
+    ...mapAicToUnified(item, iiifUrl), // Reuse base mapping
+    description: item.description, // May contain HTML, handle in component
+    dimensions: item.dimensions,
+    date: item.date_display,
+    medium: item.medium_display,
+    // sourceApiUrl: // AIC doesn't provide a direct web URL in standard response
+});
+
+const mapHamDetailToUnified = (item: HamArtworkRecord): UnifiedArtworkDetail => ({
+    ...mapHamToUnified(item), // Reuse base mapping
+    description: item.description,
+    dimensions: item.dimensions,
+    date: item.dated,
+    medium: item.medium,
+    sourceApiUrl: item.url,
+});
+
+
+// --- API Fetching Functions for Details (Internal) ---
+
 /**
  * Fetches details for a single artwork from the AIC API.
- * @param id - The ID of the artwork to fetch.
- * @returns Promise resolving to the detailed artwork data.
+ * @param id - The ID of the artwork to fetch (numeric part only).
+ * @returns Promise resolving to the detailed AIC artwork data.
  */
-export const getArtworkDetails = async (id: string): Promise<ApiDetailResponse> => {
+const getAicArtworkDetails = async (id: string): Promise<AicApiDetailResponse> => {
   // Request specific fields relevant to the detail view
   const fields = 'id,title,artist_title,image_id,description,dimensions,date_display,medium_display';
   const url = `${AIC_API_URL}/${id}?fields=${fields}`;

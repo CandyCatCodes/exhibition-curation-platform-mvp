@@ -179,7 +179,13 @@ const styles = StyleSheet.create({
   artist: {
     fontSize: 18,
     color: '#555',
-    marginBottom: 15,
+    marginBottom: 5, // Reduced margin below artist
+  },
+  sourceText: {
+      fontSize: 14,
+      color: '#888',
+      marginBottom: 15,
+      fontStyle: 'italic',
   },
   detailLabel: {
     fontSize: 16,
