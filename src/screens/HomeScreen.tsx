@@ -62,13 +62,11 @@ export default function HomeScreen({ navigation }: Props) {
 
   // Initial load and reload when source or page changes
   useEffect(() => {
-    // Only load if not already loading to prevent race conditions on rapid changes
-    // This check might be too simple, consider more robust state management if issues arise
-    if (!loading) {
-        loadArtworks(selectedSource, currentPage);
-    }
+    // Call loadArtworks whenever selectedSource or currentPage changes.
+    // loadArtworks itself handles setting the loading state.
+    loadArtworks(selectedSource, currentPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSource, currentPage]); // Rerun when source or page changes (loadArtworks is stable)
+  }, [selectedSource, currentPage]); // Rerun when source or page changes
 
 
   const handleSourceChange = (newSource: ApiSource | 'all') => {
