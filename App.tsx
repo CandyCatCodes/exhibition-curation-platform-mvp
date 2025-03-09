@@ -3,7 +3,8 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
-
+// Import the ExhibitionProvider
+import { ExhibitionProvider } from './src/context/ExhibitionContext';
 import HomeScreen from './src/screens/HomeScreen';
 import ArtworkDetailScreen from './src/screens/ArtworkDetailScreen';
 import ExhibitionScreen from './src/screens/ExhibitionScreen';
@@ -13,10 +14,12 @@ const Stack = createStackNavigator<RootStackParamList>();
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home">
-        <Stack.Screen
-          name="Home"
+    // Wrap the entire navigation structure with the ExhibitionProvider
+    <ExhibitionProvider>
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName="Home">
+          <Stack.Screen
+            name="Home"
           component={HomeScreen}
           options={{ title: 'Artworks' }}
         />
@@ -29,10 +32,11 @@ export default function App() {
           name="Exhibition"
           component={ExhibitionScreen}
           options={{ title: 'My Exhibition' }}
-        />
-      </Stack.Navigator>
-      <StatusBar style="auto" />
-    </NavigationContainer>
+          />
+        </Stack.Navigator>
+        <StatusBar style="auto" />
+      </NavigationContainer>
+    </ExhibitionProvider>
   );
 }
 
