@@ -28,7 +28,8 @@ export default function ArtworkDetailScreen({ route }: Props) {
   const [artwork, setArtwork] = useState<UnifiedArtworkDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  // No need for iiifUrl state here anymore, imageUrl is in UnifiedArtworkDetail
+  // Get exhibition context functions and state
+  const { addToExhibition, removeFromExhibition, isArtworkInExhibition } = useExhibition();
 
   useEffect(() => {
     const loadDetails = async () => {
@@ -135,11 +136,32 @@ export default function ArtworkDetailScreen({ route }: Props) {
           </View>
       )}
 
-
-      {/* TODO: Add/Remove from exhibition button will go here */}
-      <View style={styles.buttonContainer}>
-         <Button title="Add to Exhibition (Placeholder)" onPress={() => alert('Add functionality TBD')} />
-      </View>
+      {/* Add/Remove from Exhibition Button */}
+      {/* Ensure artwork is not null before rendering the button */}
+      {artwork && (
+          <View style={styles.buttonContainer}>
+              {isArtworkInExhibition(artwork.id) ? (
+                  <Button
+                      title="Remove from Exhibition"
+                      onPress={() => removeFromExhibition(artwork.id)}
+                      color="#ff6347" // Tomato color for remove action
+                  />
+              ) : (
+                  <Button
+                      title="Add to Exhibition"
+                      // Pass the necessary UnifiedArtwork fields from the detail object
+                      onPress={() => addToExhibition({
+                          id: artwork.id,
+                          title: artwork.title,
+                          artist: artwork.artist,
+                          imageUrl: artwork.imageUrl,
+                          source: artwork.source,
+                      })}
+                      color="#1e90ff" // DodgerBlue color for add action
+                  />
+              )}
+          </View>
+      )}
 
     </ScrollView>
   );
