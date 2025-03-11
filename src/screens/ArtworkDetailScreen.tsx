@@ -5,6 +5,8 @@ import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/types';
 // Import unified types and updated service function
 import { getArtworkDetails, UnifiedArtworkDetail } from '../services/api';
+// Import the context hook
+import { useExhibition } from '../context/ExhibitionContext';
 
 type ArtworkDetailScreenRouteProp = RouteProp<RootStackParamList, 'ArtworkDetail'>;
 
