@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 // Import Platform for potential platform-specific styling
 import { View, Text, Button, StyleSheet, FlatList, ActivityIndicator, Image, TouchableOpacity, Platform } from 'react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -20,6 +20,9 @@ export default function HomeScreen({ navigation }: Props) {
   const [totalPages, setTotalPages] = useState<number>(1);
   const [selectedSource, setSelectedSource] = useState<ApiSource | 'all'>('all'); // Default to 'all'
   const [totalRecords, setTotalRecords] = useState<number>(0); // Store total records info
+  // State for sorting
+  const [sortField, setSortField] = useState<'title' | 'artist' | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Function to load artworks based on source and page
   const loadArtworks = useCallback(async (source: ApiSource | 'all', page: number) => {
@@ -60,6 +63,34 @@ export default function HomeScreen({ navigation }: Props) {
     }
   }, []); // No dependencies needed for useCallback if it doesn't use external state directly
 
+
+  // Memoize the sorted artworks
+  const sortedArtworks = useMemo(() => {
+    if (!sortField) {
+      return artworks; // No sorting applied
+    }
+
+    // Create a shallow copy before sorting to avoid mutating the original state
+    const artworksToSort = [...artworks];
+
+    artworksToSort.sort((a, b) => {
+      const fieldA = (a[sortField] || '').toLowerCase(); // Handle null/undefined values
+      const fieldB = (b[sortField] || '').toLowerCase();
+
+      let comparison = 0;
+      if (fieldA > fieldB) {
+        comparison = 1;
+      } else if (fieldA < fieldB) {
+        comparison = -1;
+      }
+
+      return sortDirection === 'desc' ? comparison * -1 : comparison;
+    });
+
+    return artworksToSort;
+  }, [artworks, sortField, sortDirection]);
+
+
   // Initial load and reload when source or page changes
   useEffect(() => {
     // Call loadArtworks whenever selectedSource or currentPage changes.
@@ -89,6 +120,28 @@ export default function HomeScreen({ navigation }: Props) {
     if (selectedSource !== 'all' && currentPage > 1) {
       setCurrentPage(prevPage => prevPage - 1);
     }
+  };
+
+  // Handlers for sorting
+  const handleSortChange = (field: 'title' | 'artist') => {
+    if (sortField === field) {
+      // If clicking the same field, toggle direction
+      toggleSortDirection();
+    } else {
+      // If changing field, set field and default to ascending
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const toggleSortDirection = () => {
+    setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+  };
+
+  const clearSort = () => {
+      setSortField(null);
+      // Optionally reset direction, though it doesn't matter if field is null
+      // setSortDirection('asc');
   };
 
   // Render item using UnifiedArtwork structure
@@ -159,13 +212,30 @@ export default function HomeScreen({ navigation }: Props) {
             <Button title="My Exhibition" onPress={() => navigation.navigate('Exhibition')} />
        </View>
 
+       {/* Sorting Controls */}
+       <View style={styles.sortSelector}>
+            <Text style={styles.sortLabel}>Sort by:</Text>
+            <Button title="Title" onPress={() => handleSortChange('title')} disabled={loading} />
+            <Button title="Artist" onPress={() => handleSortChange('artist')} disabled={loading} />
+            {sortField && ( // Show direction toggle only if a field is selected
+                <Button
+                    title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}
+                    onPress={toggleSortDirection}
+                    disabled={loading}
+                />
+            )}
+             {sortField && ( // Show clear button
+                <Button title="Clear Sort" onPress={clearSort} disabled={loading} />
+            )}
+       </View>
+
        {/* Display error inline if data is already present */}
        {error && artworks.length > 0 && (
            <Text style={[styles.errorText, styles.inlineError]}>Error updating: {error}</Text>
        )}
 
       <FlatList
-        data={artworks} // Use unified artworks
+        data={sortedArtworks} // Use memoized sorted artworks
         renderItem={renderArtwork} // Uses updated render function
         keyExtractor={(item) => item.id} // Use the prefixed ID as key
         contentContainerStyle={styles.listContentContainer}
