@@ -53,4 +53,4 @@ A platform where users can explore virtual exhibitions from combined collections
 - [ ] Filter and/or sort artworks
 - [x] Display artwork details
 - [x] Add/remove items to/from temporary exhibitions (via Detail Screen)
-- [ ] View saved exhibitions
+- [x] View saved exhibitions
