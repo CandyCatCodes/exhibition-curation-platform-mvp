@@ -1,4 +1,5 @@
-import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useCallback, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UnifiedArtwork } from '../services/api'; // Import the artwork type
 
 // Define the shape of the context data and functions
@@ -18,9 +19,60 @@ interface ExhibitionProviderProps {
   children: ReactNode;
 }
 
+// Storage key
+const EXHIBITION_STORAGE_KEY = 'exhibitionList';
+
 // Create the provider component
 export const ExhibitionProvider: React.FC<ExhibitionProviderProps> = ({ children }) => {
   const [exhibition, setExhibition] = useState<UnifiedArtwork[]>([]);
+  const [isLoadedFromStorage, setIsLoadedFromStorage] = useState(false); // Track initial load
+
+  // Load exhibition from storage on mount
+  useEffect(() => {
+    const loadExhibition = async () => {
+      try {
+        const storedExhibition = await AsyncStorage.getItem(EXHIBITION_STORAGE_KEY);
+        if (storedExhibition !== null) {
+          try {
+            const parsedExhibition = JSON.parse(storedExhibition);
+            // Basic validation: check if it's an array
+            if (Array.isArray(parsedExhibition)) {
+                 setExhibition(parsedExhibition);
+            } else {
+                console.warn("Stored exhibition data is not an array, resetting.");
+                await AsyncStorage.removeItem(EXHIBITION_STORAGE_KEY); // Clear corrupted data
+            }
+          } catch (parseError) {
+            console.error("Error parsing stored exhibition data:", parseError);
+            // Clear corrupted data if parsing fails
+            await AsyncStorage.removeItem(EXHIBITION_STORAGE_KEY);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading exhibition from AsyncStorage:", error);
+      } finally {
+        setIsLoadedFromStorage(true); // Mark loading as complete
+      }
+    };
+
+    loadExhibition();
+  }, []); // Empty dependency array ensures this runs only once on mount
+
+  // Save exhibition to storage whenever it changes, after initial load
+  useEffect(() => {
+    const saveExhibition = async () => {
+      try {
+        await AsyncStorage.setItem(EXHIBITION_STORAGE_KEY, JSON.stringify(exhibition));
+      } catch (error) {
+        console.error("Error saving exhibition to AsyncStorage:", error);
+      }
+    };
+
+    // Only save after the initial load is complete
+    if (isLoadedFromStorage) {
+      saveExhibition();
+    }
+  }, [exhibition, isLoadedFromStorage]); // Run when exhibition or loaded status changes
 
   // Function to add an artwork to the exhibition
   const addToExhibition = useCallback((artwork: UnifiedArtwork) => {

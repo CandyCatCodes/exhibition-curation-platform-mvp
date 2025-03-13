@@ -52,5 +52,5 @@ A platform where users can explore virtual exhibitions from combined collections
 - [x] Browse artworks with pagination (Single source only for now - AIC/Harvard)
 - [x] Filter and/or sort artworks (Client-side sort by Title/Artist for current page)
 - [x] Display artwork details
-- [x] Add/remove items to/from temporary exhibitions (via Detail Screen)
-- [x] View saved exhibitions
+- [x] Add/remove items to/from exhibitions (via Detail Screen)
+- [x] View saved exhibitions (Persistence implemented)
