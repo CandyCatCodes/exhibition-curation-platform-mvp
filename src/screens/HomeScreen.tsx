@@ -314,6 +314,21 @@ const styles = StyleSheet.create({
         zIndex: 1,
     }),
   },
+  sortSelector: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start', // Align items to the start
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    backgroundColor: '#f0f0f0', // Slightly different background
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  sortLabel: {
+      marginRight: 8,
+      fontSize: 14,
+      fontWeight: 'bold',
+  },
   thumbnail: {
     width: 60,
     height: 60,
