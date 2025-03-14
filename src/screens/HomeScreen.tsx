@@ -23,8 +23,14 @@ export default function HomeScreen({ navigation }: Props) {
   // State for sorting
   const [sortField, setSortField] = useState<'title' | 'artist' | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  // State for 'all' source infinite scroll
+  const [aicPageForAll, setAicPageForAll] = useState<number>(1);
+  const [hamPageForAll, setHamPageForAll] = useState<number>(1);
+  const [aicHasMoreForAll, setAicHasMoreForAll] = useState<boolean>(true);
+  const [hamHasMoreForAll, setHamHasMoreForAll] = useState<boolean>(true);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false); // For infinite scroll loading indicator
 
-  // Function to load artworks based on source and page
+  // Function to load artworks based on source and page (initial load or single source pagination)
   const loadArtworks = useCallback(async (source: ApiSource | 'all', page: number) => {
     console.log(`Loading artworks - Source: ${source}, Page: ${page}`);
     setLoading(true);
@@ -61,7 +67,88 @@ export default function HomeScreen({ navigation }: Props) {
     } finally {
       setLoading(false);
     }
-  }, []); // No dependencies needed for useCallback if it doesn't use external state directly
+  }, []); // No dependencies needed for useCallback
+
+
+  // Function to load more artworks for 'all' source (infinite scroll)
+  const handleLoadMore = useCallback(async () => {
+      // Guard clauses: only run for 'all' source, not if already loading, and if there's more data from at least one source
+      if (selectedSource !== 'all' || isLoadingMore || (!aicHasMoreForAll && !hamHasMoreForAll)) {
+          // console.log("handleLoadMore: Bailing out", { selectedSource, isLoadingMore, aicHasMoreForAll, hamHasMoreForAll });
+          return;
+      }
+
+      console.log(`handleLoadMore: Fetching AIC page ${aicPageForAll}, HAM page ${hamPageForAll}`);
+      setIsLoadingMore(true);
+      // Don't clear main error on load more, maybe show inline? For now, keep existing error if any.
+      // setError(null);
+
+      const limit = 10; // Items per page for subsequent loads
+      const promises = [];
+
+      // Add fetch promise only if the source has more data
+      if (aicHasMoreForAll) {
+          promises.push(getArtworks('aic', aicPageForAll, limit).then(res => ({ ...res, sourceOrigin: 'aic' }))); // Tag result with source
+      }
+      // Add HAM only if key exists and it has more data
+      if (hamHasMoreForAll && process.env.EXPO_PUBLIC_HARVARD_API_KEY) {
+          promises.push(getArtworks('ham', hamPageForAll, limit).then(res => ({ ...res, sourceOrigin: 'ham' }))); // Tag result with source
+      } else if (hamHasMoreForAll && !process.env.EXPO_PUBLIC_HARVARD_API_KEY) {
+          // If we thought HAM had more but key is missing now, mark as no more.
+          setHamHasMoreForAll(false);
+      }
+
+      // If no promises were added (e.g., both sources exhausted, or HAM key missing)
+      if (promises.length === 0) {
+          setIsLoadingMore(false);
+          return;
+      }
+
+      const results = await Promise.allSettled(promises);
+
+      let newArtworks: UnifiedArtwork[] = [];
+      let nextAicPage = aicPageForAll;
+      let nextHamPage = hamPageForAll;
+      let stillHasAic = aicHasMoreForAll;
+      let stillHasHam = hamHasMoreForAll;
+
+      results.forEach((result) => {
+          if (result.status === 'fulfilled') {
+              const response = result.value; // Contains sourceOrigin tag
+              newArtworks = newArtworks.concat(response.artworks);
+
+              if (response.sourceOrigin === 'aic') {
+                  stillHasAic = response.pagination.currentPage < response.pagination.totalPages;
+                  nextAicPage = response.pagination.currentPage + 1;
+              } else if (response.sourceOrigin === 'ham') {
+                  stillHasHam = response.pagination.currentPage < response.pagination.totalPages;
+                  nextHamPage = response.pagination.currentPage + 1;
+              }
+          } else {
+              // Identify which source failed based on the promise array structure (less ideal)
+              // Or rely on error message if available. For now, just log.
+              console.error(`handleLoadMore: Failed to fetch more data:`, result.reason);
+              // Decide how to handle partial failures. For now, we just don't update 'hasMore' for the failed source.
+              // We could try to infer the source based on the error or promise order if needed.
+              // If a source consistently fails, maybe set its 'hasMore' to false?
+              // setError(`Failed to load more data.`); // Set a generic error?
+          }
+      });
+
+      // Shuffle the newly fetched items before appending (optional, could interleave instead)
+      newArtworks.sort(() => Math.random() - 0.5);
+
+      // Append new artworks only if some were fetched
+      if (newArtworks.length > 0) {
+          setArtworks(prevArtworks => [...prevArtworks, ...newArtworks]);
+      }
+      setAicPageForAll(nextAicPage);
+      setHamPageForAll(nextHamPage);
+      setAicHasMoreForAll(stillHasAic);
+      setHamHasMoreForAll(stillHasHam);
+      setIsLoadingMore(false);
+
+  }, [selectedSource, isLoadingMore, aicHasMoreForAll, hamHasMoreForAll, aicPageForAll, hamPageForAll]);
 
 
   // Memoize the sorted artworks
@@ -91,13 +178,30 @@ export default function HomeScreen({ navigation }: Props) {
   }, [artworks, sortField, sortDirection]);
 
 
-  // Initial load and reload when source or page changes
+  // Effect for initial load and source changes
   useEffect(() => {
-    // Call loadArtworks whenever selectedSource or currentPage changes.
-    // loadArtworks itself handles setting the loading state.
-    loadArtworks(selectedSource, currentPage);
+    // Always load page 1 when the source changes
+    console.log(`Source changed to: ${selectedSource}. Loading page 1.`);
+    // Reset single-source page to 1 before loading
+    setCurrentPage(1);
+    loadArtworks(selectedSource, 1);
+    // Reset sort when source changes? Optional.
+    // setSortField(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSource, currentPage]); // Rerun when source or page changes
+  }, [selectedSource]); // Only trigger on source change
+
+  // Effect for single-source pagination changes (Button clicks)
+  useEffect(() => {
+    // Only trigger pagination load if NOT 'all' source and page > 0 (page is 1-based)
+    // Also ensure loadArtworks isn't called redundantly on initial source change (page will be 1)
+    if (selectedSource !== 'all' && currentPage > 0) {
+        console.log(`Current page changed to: ${currentPage} for source ${selectedSource}. Loading.`);
+        // We don't need to check if page is > 1 here, loadArtworks handles clearing/setting based on page
+        loadArtworks(selectedSource, currentPage);
+    }
+    // Do NOT add loadArtworks to dependencies here, it causes loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, selectedSource]); // React to currentPage changes, but conditionally act based on selectedSource
 
 
   const handleSourceChange = (newSource: ApiSource | 'all') => {
@@ -239,14 +343,14 @@ export default function HomeScreen({ navigation }: Props) {
         renderItem={renderArtwork} // Uses updated render function
         keyExtractor={(item) => item.id} // Use the prefixed ID as key
         contentContainerStyle={styles.listContentContainer}
-        ListEmptyComponent={!loading ? <Text style={styles.emptyListText}>No artworks found for the selected source.</Text> : null}
-        // Optional: Add pull-to-refresh or infinite scroll later
-        // onEndReached={handleLoadMore} // Example for infinite scroll
-        // onEndReachedThreshold={0.5}
-        // ListFooterComponent={loading && artworks.length > 0 ? <ActivityIndicator size="small" /> : null} // Loading indicator at bottom
+        ListEmptyComponent={!loading && !isLoadingMore ? <Text style={styles.emptyListText}>No artworks found.</Text> : null}
+        // Infinite Scroll props - Conditionally enable only for 'all' source
+        onEndReached={selectedSource === 'all' ? handleLoadMore : undefined}
+        onEndReachedThreshold={0.5} // Trigger when the end is within half the visible length
+        ListFooterComponent={selectedSource === 'all' && isLoadingMore ? <ActivityIndicator style={styles.footerLoadingIndicator} size="small" /> : null}
       />
 
-      {/* Pagination Controls - Show only if not loading and more than one page */}
+      {/* Pagination Controls & Info Area */}
       {!loading && totalPages > 1 && (
           <View style={styles.paginationContainer}>
             {selectedSource !== 'all' ? (
@@ -396,10 +500,16 @@ const styles = StyleSheet.create({
   },
   pageInfo: {
     fontSize: 16,
+    marginHorizontal: 10, // Add spacing around page info
+  },
+  moreAvailableText: {
+      fontSize: 12,
+      color: '#666',
+      marginLeft: 5, // Space from the main page info
   },
   pageLoadingIndicator: {
-    // position: 'absolute', // Remove absolute positioning
-    // bottom: 50,
+    // This indicator is shown when `loading` is true (initial load/single source page change)
+    // It appears *below* the list, potentially replacing pagination controls visually.
     // alignSelf: 'center',
     marginTop: 10, // Add some margin if needed when shown at bottom
     paddingVertical: 10, // Add padding if it's replacing pagination controls visually
