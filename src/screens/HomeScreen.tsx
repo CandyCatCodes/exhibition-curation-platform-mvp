@@ -33,24 +33,102 @@ export default function HomeScreen({ navigation }: Props) {
   // Function to load artworks based on source and page (initial load or single source pagination)
   const loadArtworks = useCallback(async (source: ApiSource | 'all', page: number) => {
     console.log(`Loading artworks - Source: ${source}, Page: ${page}`);
-    setLoading(true);
-    setError(null); // Clear previous errors
-    // Reset artworks only if changing source or going to page 1 for a specific source
-    // For 'all', we always fetch page 1 and replace results.
-    if (page === 1 || source === 'all') {
-        setArtworks([]);
-    }
+    setLoading(true); // Indicate main loading state
+    setIsLoadingMore(false); // Ensure infinite scroll indicator is off during main load
+    setError(null);
+    setArtworks([]); // Always clear artworks on initial load/source change
+
+    const limit = 10; // Items per page
+
     try {
-      // Use the updated getArtworks service function
-      const response: UnifiedArtworksResponse = await getArtworks(source, page, 10); // Fetch 10 items per page
+        if (source === 'aic' || source === 'ham') {
+            // Single source loading (uses pagination buttons)
+            const response = await getArtworks(source, page, limit);
+            setArtworks(response.artworks);
+            setTotalPages(response.pagination.totalPages);
+            setCurrentPage(response.pagination.currentPage);
+            setTotalRecords(response.pagination.totalRecords);
+            // Reset 'all' state when switching to single source
+            setAicPageForAll(1);
+            setHamPageForAll(1);
+            setAicHasMoreForAll(true);
+            setHamHasMoreForAll(true);
+        } else { // 'all' source - Initial Load Only
+            console.log("Initial load for 'all' source");
+            // Reset 'all' pagination state for the new load
+            setAicPageForAll(1);
+            setHamPageForAll(1);
+            setAicHasMoreForAll(true);
+            setHamHasMoreForAll(true);
 
-      // If page > 1 and not 'all', append results (simple infinite scroll idea, needs refinement)
-      // For now, we replace results on every load for simplicity with pagination buttons
-      setArtworks(response.artworks);
-      setTotalPages(response.pagination.totalPages);
-      setCurrentPage(response.pagination.currentPage);
-      setTotalRecords(response.pagination.totalRecords); // Store total records
+            // Fetch page 1 from both concurrently
+            // Use slightly larger limit for initial 'all' load to fill screen better? Optional.
+            const initialLimit = limit;
+            const aicPromise = getArtworks('aic', 1, initialLimit);
+            // Only include HAM if key exists
+            const hamPromise = process.env.EXPO_PUBLIC_HARVARD_API_KEY
+                ? getArtworks('ham', 1, initialLimit)
+                : Promise.resolve(null); // Resolve immediately if no key
 
+            const [aicResult, hamResult] = await Promise.allSettled([aicPromise, hamPromise]);
+
+            let combinedArtworks: UnifiedArtwork[] = [];
+            let combinedTotalRecords = 0;
+            let tempAicHasMore = false;
+            let tempHamHasMore = false;
+            let tempAicNextPage = 1;
+            let tempHamNextPage = 1;
+
+            if (aicResult.status === 'fulfilled') {
+                const aicResponse = aicResult.value;
+                combinedArtworks = combinedArtworks.concat(aicResponse.artworks);
+                combinedTotalRecords += aicResponse.pagination.totalRecords;
+                tempAicHasMore = aicResponse.pagination.currentPage < aicResponse.pagination.totalPages;
+                tempAicNextPage = aicResponse.pagination.currentPage + 1;
+            } else {
+                console.error("Initial AIC fetch failed for 'all':", aicResult.reason);
+                // Set error state but continue if HAM might succeed
+                setError("Failed to load data from AIC.");
+            }
+
+            // Check hamResult only if it wasn't explicitly skipped
+            if (hamResult.status === 'fulfilled' && hamResult.value !== null) {
+                const hamResponse = hamResult.value;
+                combinedArtworks = combinedArtworks.concat(hamResponse.artworks);
+                combinedTotalRecords += hamResponse.pagination.totalRecords; // Assuming HAM response structure is adapted
+                tempHamHasMore = hamResponse.pagination.currentPage < hamResponse.pagination.totalPages;
+                tempHamNextPage = hamResponse.pagination.currentPage + 1;
+                 // Clear partial error if HAM succeeded
+                 if(aicResult.status === 'rejected') setError(null);
+            } else if (hamResult.status === 'rejected') {
+                console.error("Initial HAM fetch failed for 'all':", hamResult.reason);
+                 const hamErrorMsg = hamResult.reason instanceof Error ? hamResult.reason.message : 'Unknown HAM Error';
+                 // Set error state, potentially overwriting AIC error if both fail
+                 setError(`Failed to load data from Harvard. ${hamErrorMsg.includes("API Key") ? "Check API Key." : ""}`);
+            } else if (hamResult.value === null) {
+                console.log("Skipped initial HAM fetch for 'all' due to missing API key.");
+                tempHamHasMore = false; // No more HAM data if key is missing
+            }
+
+
+            // Shuffle the initial combined list
+            combinedArtworks.sort(() => Math.random() - 0.5);
+
+            setArtworks(combinedArtworks);
+            setTotalRecords(combinedTotalRecords); // Approximate total
+            // Estimate total pages - less relevant for infinite scroll
+            setTotalPages(Math.ceil(combinedTotalRecords / limit));
+            setCurrentPage(1); // Always page 1 for 'all' initial load
+            setAicHasMoreForAll(tempAicHasMore);
+            setHamHasMoreForAll(tempHamHasMore);
+            setAicPageForAll(tempAicNextPage); // Set the *next* page to fetch
+            setHamPageForAll(tempHamNextPage); // Set the *next* page to fetch
+
+            // If both failed AND we ended up with no artworks, throw a more specific error
+            if (aicResult.status === 'rejected' && hamResult.status !== 'fulfilled' && combinedArtworks.length === 0) {
+                 throw new Error("Failed to fetch initial data from any source.");
+            }
+        }
     } catch (err) {
       console.error("Error in loadArtworks:", err);
       // Check if the error message indicates missing API key
@@ -350,31 +428,46 @@ export default function HomeScreen({ navigation }: Props) {
         ListFooterComponent={selectedSource === 'all' && isLoadingMore ? <ActivityIndicator style={styles.footerLoadingIndicator} size="small" /> : null}
       />
 
-      {/* Pagination Controls & Info Area */}
-      {!loading && totalPages > 1 && (
+      {/* --- Footer Area: Pagination Controls or Infinite Scroll Info --- */}
+
+      {/* Pagination Buttons: Show only for single sources, if not loading, and if multiple pages exist */}
+      {selectedSource !== 'all' && !loading && totalPages > 1 && (
           <View style={styles.paginationContainer}>
-            {selectedSource !== 'all' ? (
-                <>
-                    <Button title="Previous" onPress={handlePrevPage} disabled={currentPage <= 1 || loading} />
-                    <Text style={styles.pageInfo}>Page {currentPage} of {totalPages}</Text>
-                    <Button title="Next" onPress={handleNextPage} disabled={currentPage >= totalPages || loading} />
-                </>
-            ) : (
-                // Simplified message for 'all' source
-                 <Text style={styles.pageInfo}>Page {currentPage} of {totalPages} (approx. {totalRecords} items)</Text>
-            )}
+              <Button title="Previous" onPress={handlePrevPage} disabled={currentPage <= 1 || loading} />
+              <Text style={styles.pageInfo}>Page {currentPage} of {totalPages}</Text>
+              <Button title="Next" onPress={handleNextPage} disabled={currentPage >= totalPages || loading} />
           </View>
       )}
-       {/* Show simplified info if only one page */}
-       {!loading && totalPages <= 1 && artworks.length > 0 && (
+
+      {/* Single Page Info: Show for single sources if not loading and only one page */}
+      {selectedSource !== 'all' && !loading && totalPages <= 1 && artworks.length > 0 && (
             <View style={styles.paginationContainer}>
                 <Text style={styles.pageInfo}>{totalRecords} items found</Text>
             </View>
        )}
 
+       {/* 'All' Source Info: Show when 'all' is selected and not actively loading more */}
+       {selectedSource === 'all' && !isLoadingMore && artworks.length > 0 && (
+            <View style={styles.paginationContainer}>
+                 {/* Show total records if available, otherwise just indicate 'all' */}
+                 <Text style={styles.pageInfo}>
+                    {totalRecords > 0 ? `Approx. ${totalRecords} total items` : 'Showing combined results'}
+                 </Text>
+                 {/* Indicate if more might be available to load */}
+                 {(aicHasMoreForAll || hamHasMoreForAll) && !loading &&
+                    <Text style={styles.moreAvailableText}>(Scroll down for more)</Text>
+                 }
+                 {/* Indicate if all known items loaded */}
+                 {!aicHasMoreForAll && !hamHasMoreForAll && !loading &&
+                    <Text style={styles.moreAvailableText}>(All items loaded)</Text>
+                 }
+            </View>
+       )}
 
-      {/* Loading indicator for pagination/refresh (show only when loading more pages) */}
-      {loading && artworks.length > 0 && <ActivityIndicator style={styles.pageLoadingIndicator} />}
+       {/* Main loading indicator shown during initial load or single-source page change */}
+       {/* Ensure it doesn't overlap with the footer indicator */}
+       {loading && artworks.length > 0 && !isLoadingMore && <ActivityIndicator style={styles.pageLoadingIndicator} />}
+       {/* The ListFooterComponent handles the isLoadingMore indicator within the FlatList */}
     </View>
   );
 }
@@ -511,7 +604,10 @@ const styles = StyleSheet.create({
     // This indicator is shown when `loading` is true (initial load/single source page change)
     // It appears *below* the list, potentially replacing pagination controls visually.
     // alignSelf: 'center',
-    marginTop: 10, // Add some margin if needed when shown at bottom
-    paddingVertical: 10, // Add padding if it's replacing pagination controls visually
+    paddingVertical: 15, // Give it some vertical space
+  },
+  footerLoadingIndicator: {
+      // This indicator is shown by ListFooterComponent when `isLoadingMore` is true for 'all' source
+      marginVertical: 20, // Add padding within the list scroll area
   }
 });
