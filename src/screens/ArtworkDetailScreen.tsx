@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-// Import Linking for opening URLs and Platform
-import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, Button, Linking, Platform } from 'react-native';
+// Import Linking for opening URLs, Platform, and useWindowDimensions
+import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, Button, Linking, Platform, useWindowDimensions } from 'react-native';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/types';
+// Import RenderHTML
+import RenderHTML from 'react-native-render-html';
 // Import unified types and updated service function
 import { getArtworkDetails, UnifiedArtworkDetail } from '../services/api';
 // Import the context hook
@@ -14,17 +16,11 @@ type Props = {
   route: ArtworkDetailScreenRouteProp;
 };
 
-// Basic component to render HTML content safely (requires further implementation/library)
-// For now, it just displays the raw text. Consider using react-native-render-html later.
-const HtmlRenderer = ({ html }: { html: string | null }) => {
-  if (!html) return null;
-  // Basic cleanup: remove HTML tags for now
-  const plainText = html.replace(/<[^>]*>?/gm, '');
-  return <Text style={styles.detailText}>{plainText}</Text>;
-};
-
+// Removed the custom HtmlRenderer component
 
 export default function ArtworkDetailScreen({ route }: Props) {
+  // Get window dimensions for responsive HTML rendering
+  const { width } = useWindowDimensions();
   // artworkId is now the prefixed ID, e.g., "aic-123" or "ham-456"
   const { artworkId } = route.params;
   const [artwork, setArtwork] = useState<UnifiedArtworkDetail | null>(null);
@@ -128,8 +124,15 @@ export default function ArtworkDetailScreen({ route }: Props) {
       {artwork.dimensions && <Text style={styles.detailText}>{artwork.dimensions}</Text>}
 
       {artwork.description && <Text style={styles.detailLabel}>Description:</Text>}
-      {/* Use a simple renderer for now. Replace with a proper HTML renderer later if needed. */}
-      <HtmlRenderer html={artwork.description} />
+      {/* Use RenderHTML to display the description */}
+      {artwork.description && (
+          <RenderHTML
+              contentWidth={width - 30} // Subtract padding (15 * 2)
+              source={{ html: artwork.description }}
+              tagsStyles={htmlStyles} // Apply basic styling
+              baseStyle={styles.detailText} // Use existing text style as base
+          />
+      )}
 
       {/* Link to original source if available */}
       {artwork.sourceApiUrl && (
@@ -237,3 +240,18 @@ const styles = StyleSheet.create({
       alignItems: 'flex-start', // Align button to the left
   }
 });
+
+// Basic styling for HTML tags (adjust as needed)
+const htmlStyles = {
+  p: { // Style for paragraph tags
+    marginVertical: 5, // Add some vertical space between paragraphs
+  },
+  a: { // Style for anchor tags (links)
+    color: '#1e90ff', // DodgerBlue
+    textDecorationLine: 'underline',
+  },
+  // Add styles for other tags like strong, em, ul, li etc. if needed
+  // Example:
+  // strong: { fontWeight: 'bold' },
+  // em: { fontStyle: 'italic' },
+};
