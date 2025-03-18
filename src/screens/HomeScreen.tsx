@@ -148,85 +148,113 @@ export default function HomeScreen({ navigation }: Props) {
   }, []); // No dependencies needed for useCallback
 
 
-  // Function to load more artworks for 'all' source (infinite scroll)
+  // Function to load more artworks (infinite scroll for ALL sources)
   const handleLoadMore = useCallback(async () => {
-      // Guard clauses: only run for 'all' source, not if already loading, and if there's more data from at least one source
-      if (selectedSource !== 'all' || isLoadingMore || (!aicHasMoreForAll && !hamHasMoreForAll)) {
-          // console.log("handleLoadMore: Bailing out", { selectedSource, isLoadingMore, aicHasMoreForAll, hamHasMoreForAll });
+      // Common guard clauses: Don't run if already loading more or if main loading is happening
+      if (isLoadingMore || loading) {
           return;
       }
-
-      console.log(`handleLoadMore: Fetching AIC page ${aicPageForAll}, HAM page ${hamPageForAll}`);
-      setIsLoadingMore(true);
-      // Don't clear main error on load more, maybe show inline? For now, keep existing error if any.
-      // setError(null);
 
       const limit = 10; // Items per page for subsequent loads
-      const promises = [];
 
-      // Add fetch promise only if the source has more data
-      if (aicHasMoreForAll) {
-          promises.push(getArtworks('aic', aicPageForAll, limit).then(res => ({ ...res, sourceOrigin: 'aic' }))); // Tag result with source
-      }
-      // Add HAM only if key exists and it has more data
-      if (hamHasMoreForAll && process.env.EXPO_PUBLIC_HARVARD_API_KEY) {
-          promises.push(getArtworks('ham', hamPageForAll, limit).then(res => ({ ...res, sourceOrigin: 'ham' }))); // Tag result with source
-      } else if (hamHasMoreForAll && !process.env.EXPO_PUBLIC_HARVARD_API_KEY) {
-          // If we thought HAM had more but key is missing now, mark as no more.
-          setHamHasMoreForAll(false);
-      }
-
-      // If no promises were added (e.g., both sources exhausted, or HAM key missing)
-      if (promises.length === 0) {
-          setIsLoadingMore(false);
-          return;
-      }
-
-      const results = await Promise.allSettled(promises);
-
-      let newArtworks: UnifiedArtwork[] = [];
-      let nextAicPage = aicPageForAll;
-      let nextHamPage = hamPageForAll;
-      let stillHasAic = aicHasMoreForAll;
-      let stillHasHam = hamHasMoreForAll;
-
-      results.forEach((result) => {
-          if (result.status === 'fulfilled') {
-              const response = result.value; // Contains sourceOrigin tag
-              newArtworks = newArtworks.concat(response.artworks);
-
-              if (response.sourceOrigin === 'aic') {
-                  stillHasAic = response.pagination.currentPage < response.pagination.totalPages;
-                  nextAicPage = response.pagination.currentPage + 1;
-              } else if (response.sourceOrigin === 'ham') {
-                  stillHasHam = response.pagination.currentPage < response.pagination.totalPages;
-                  nextHamPage = response.pagination.currentPage + 1;
-              }
-          } else {
-              // Identify which source failed based on the promise array structure (less ideal)
-              // Or rely on error message if available. For now, just log.
-              console.error(`handleLoadMore: Failed to fetch more data:`, result.reason);
-              // Decide how to handle partial failures. For now, we just don't update 'hasMore' for the failed source.
-              // We could try to infer the source based on the error or promise order if needed.
-              // If a source consistently fails, maybe set its 'hasMore' to false?
-              // setError(`Failed to load more data.`); // Set a generic error?
+      // --- 'All' Source Logic ---
+      if (selectedSource === 'all') {
+          // Guard clause: only run if there's more data from at least one source
+          if (!aicHasMoreForAll && !hamHasMoreForAll) {
+              return;
           }
-      });
+          console.log(`handleLoadMore ('all'): Fetching AIC page ${aicPageForAll}, HAM page ${hamPageForAll}`);
+          setIsLoadingMore(true);
 
-      // Shuffle the newly fetched items before appending (optional, could interleave instead)
-      newArtworks.sort(() => Math.random() - 0.5);
+          const promises = [];
+          if (aicHasMoreForAll) {
+              promises.push(getArtworks('aic', aicPageForAll, limit).then(res => ({ ...res, sourceOrigin: 'aic' })));
+          }
+          if (hamHasMoreForAll && process.env.EXPO_PUBLIC_HARVARD_API_KEY) {
+              promises.push(getArtworks('ham', hamPageForAll, limit).then(res => ({ ...res, sourceOrigin: 'ham' })));
+          } else if (hamHasMoreForAll && !process.env.EXPO_PUBLIC_HARVARD_API_KEY) {
+              setHamHasMoreForAll(false); // Correct the state if key is missing
+          }
 
-      // Append new artworks only if some were fetched
-      if (newArtworks.length > 0) {
-          setArtworks(prevArtworks => [...prevArtworks, ...newArtworks]);
+          if (promises.length === 0) {
+              setIsLoadingMore(false);
+              return;
+          }
+
+          const results = await Promise.allSettled(promises);
+          let newArtworks: UnifiedArtwork[] = [];
+          let nextAicPage = aicPageForAll;
+          let nextHamPage = hamPageForAll;
+          let stillHasAic = aicHasMoreForAll;
+          let stillHasHam = hamHasMoreForAll;
+
+          results.forEach((result) => {
+              if (result.status === 'fulfilled') {
+                  const response = result.value;
+                  newArtworks = newArtworks.concat(response.artworks);
+                  if (response.sourceOrigin === 'aic') {
+                      stillHasAic = response.pagination.currentPage < response.pagination.totalPages;
+                      nextAicPage = response.pagination.currentPage + 1;
+                  } else if (response.sourceOrigin === 'ham') {
+                      stillHasHam = response.pagination.currentPage < response.pagination.totalPages;
+                      nextHamPage = response.pagination.currentPage + 1;
+                  }
+              } else {
+                  console.error(`handleLoadMore ('all'): Failed to fetch more data:`, result.reason);
+                  // Handle failure - maybe stop trying for that source?
+                  // For simplicity, we'll just log the error for now.
+              }
+          });
+
+          newArtworks.sort(() => Math.random() - 0.5); // Shuffle combined results
+
+          if (newArtworks.length > 0) {
+              setArtworks(prevArtworks => {
+                  const existingIds = new Set(prevArtworks.map(art => art.id));
+                  const uniqueNewArtworks = newArtworks.filter(art => !existingIds.has(art.id));
+                  return [...prevArtworks, ...uniqueNewArtworks];
+              });
+          }
+          setAicPageForAll(nextAicPage);
+          setHamPageForAll(nextHamPage);
+          setAicHasMoreForAll(stillHasAic);
+          setHamHasMoreForAll(stillHasHam);
+          setIsLoadingMore(false);
+
+      // --- Single Source Logic (AIC or HAM) ---
+      } else {
+          // Guard clause: only run if current page is less than total pages
+          if (currentPage >= totalPages) {
+              return;
+          }
+          console.log(`handleLoadMore ('${selectedSource}'): Fetching page ${currentPage + 1}`);
+          setIsLoadingMore(true);
+
+          try {
+              const nextPage = currentPage + 1;
+              const response = await getArtworks(selectedSource, nextPage, limit);
+
+              // Append results, assuming getArtworks doesn't return duplicates on subsequent pages
+              setArtworks(prevArtworks => [...prevArtworks, ...response.artworks]);
+              setCurrentPage(response.pagination.currentPage);
+              // Update totalPages and totalRecords in case they changed (less likely but possible)
+              setTotalPages(response.pagination.totalPages);
+              setTotalRecords(response.pagination.totalRecords);
+
+          } catch (err) {
+              console.error(`handleLoadMore ('${selectedSource}'): Failed to fetch page ${currentPage + 1}:`, err);
+              setError(`Failed to load more artworks.`); // Set a generic error
+          } finally {
+              setIsLoadingMore(false);
+          }
       }
-      setAicPageForAll(nextAicPage);
-      setHamPageForAll(nextHamPage);
-      setAicHasMoreForAll(stillHasAic);
-      setHamHasMoreForAll(stillHasHam);
-      setIsLoadingMore(false);
-
-  }, [selectedSource, isLoadingMore, aicHasMoreForAll, hamHasMoreForAll, aicPageForAll, hamPageForAll]);
+  }, [
+      selectedSource, isLoadingMore, loading, // Include loading to prevent overlap
+      // 'all' source dependencies
+      aicHasMoreForAll, hamHasMoreForAll, aicPageForAll, hamPageForAll,
+      // Single source dependencies
+      currentPage, totalPages
+  ]);
 
 
   // Memoize the sorted artworks
@@ -287,20 +315,6 @@ export default function HomeScreen({ navigation }: Props) {
       setSelectedSource(newSource);
       setCurrentPage(1); // Reset to page 1 when changing source
       // The useEffect will trigger the reload
-    }
-  };
-
-  const handleNextPage = () => {
-    // Disable next for 'all' source as pagination is simplified
-    if (selectedSource !== 'all' && currentPage < totalPages) {
-      setCurrentPage(prevPage => prevPage + 1);
-    }
-  };
-
-  const handlePrevPage = () => {
-    // Disable prev for 'all' source
-    if (selectedSource !== 'all' && currentPage > 1) {
-      setCurrentPage(prevPage => prevPage - 1);
     }
   };
 
@@ -422,13 +436,13 @@ export default function HomeScreen({ navigation }: Props) {
         keyExtractor={(item) => item.id} // Use the prefixed ID as key
         contentContainerStyle={styles.listContentContainer}
         ListEmptyComponent={!loading && !isLoadingMore ? <Text style={styles.emptyListText}>No artworks found.</Text> : null}
-        // Infinite Scroll props - Conditionally enable only for 'all' source
-        onEndReached={selectedSource === 'all' ? handleLoadMore : undefined}
+        // Infinite Scroll props - Always enabled now
+        onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5} // Trigger when the end is within half the visible length
-        ListFooterComponent={selectedSource === 'all' && isLoadingMore ? <ActivityIndicator style={styles.footerLoadingIndicator} size="small" /> : null}
+        ListFooterComponent={isLoadingMore ? <ActivityIndicator style={styles.footerLoadingIndicator} size="small" /> : null} // Show if loading more for any source
       />
 
-      {/* --- Footer Area: Pagination Controls or Infinite Scroll Info --- */}
+      {/* --- Footer Area: Status Info --- */}
 
       {/* Pagination Buttons: Show only for single sources, if not loading, and if multiple pages exist */}
       {selectedSource !== 'all' && !loading && totalPages > 1 && (
@@ -464,9 +478,10 @@ export default function HomeScreen({ navigation }: Props) {
             </View>
        )}
 
-       {/* Main loading indicator shown during initial load or single-source page change */}
+       {/* Main loading indicator shown during initial load */}
        {/* Ensure it doesn't overlap with the footer indicator */}
-       {loading && artworks.length > 0 && !isLoadingMore && <ActivityIndicator style={styles.pageLoadingIndicator} />}
+       {/* Use `loading` state which is true only during initial load/source change */}
+       {loading && artworks.length > 0 && <ActivityIndicator style={styles.pageLoadingIndicator} />}
        {/* The ListFooterComponent handles the isLoadingMore indicator within the FlatList */}
     </View>
   );

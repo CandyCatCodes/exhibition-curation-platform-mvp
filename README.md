@@ -49,7 +49,7 @@ A platform where users can explore virtual exhibitions from combined collections
 ## Features
 
 - [x] Browse artworks across collections (AIC & Harvard) - Source selection implemented.
-- [x] Browse artworks with pagination (Single source: Buttons, 'All' source: Infinite Scroll)
+- [x] Browse artworks with pagination (Infinite Scroll for all sources)
 - [x] Filter and/or sort artworks (Client-side sort by Title/Artist for current page)
 - [x] Display artwork details
 - [x] Add/remove items to/from exhibitions (via Detail Screen)
