@@ -14,8 +14,9 @@ import { RootStackParamList } from './src/navigation/types';
 const Stack = createStackNavigator<RootStackParamList>();
 
 // Ignore the specific defaultProps warning from TNodeChildrenRenderer
+// Use a slightly broader match in case the exact string varies
 LogBox.ignoreLogs([
-  'Warning: TNodeChildrenRenderer: Support for defaultProps will be removed',
+  'TNodeChildrenRenderer: Support for defaultProps will be removed',
 ]);
 
 export default function App() {
