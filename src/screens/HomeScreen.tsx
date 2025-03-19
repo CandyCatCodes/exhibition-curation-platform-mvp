@@ -444,36 +444,40 @@ export default function HomeScreen({ navigation }: Props) {
 
       {/* --- Footer Area: Status Info --- */}
 
-      {/* Pagination Buttons: Show only for single sources, if not loading, and if multiple pages exist */}
-      {selectedSource !== 'all' && !loading && totalPages > 1 && (
-          <View style={styles.paginationContainer}>
-              <Button title="Previous" onPress={handlePrevPage} disabled={currentPage <= 1 || loading} />
-              <Text style={styles.pageInfo}>Page {currentPage} of {totalPages}</Text>
-              <Button title="Next" onPress={handleNextPage} disabled={currentPage >= totalPages || loading} />
-          </View>
-      )}
-
-      {/* Single Page Info: Show for single sources if not loading and only one page */}
-      {selectedSource !== 'all' && !loading && totalPages <= 1 && artworks.length > 0 && (
+       {/* Show info when not loading more and artworks are present */}
+       {!isLoadingMore && artworks.length > 0 && (
             <View style={styles.paginationContainer}>
-                <Text style={styles.pageInfo}>{totalRecords} items found</Text>
-            </View>
-       )}
-
-       {/* 'All' Source Info: Show when 'all' is selected and not actively loading more */}
-       {selectedSource === 'all' && !isLoadingMore && artworks.length > 0 && (
-            <View style={styles.paginationContainer}>
-                 {/* Show total records if available, otherwise just indicate 'all' */}
-                 <Text style={styles.pageInfo}>
-                    {totalRecords > 0 ? `Approx. ${totalRecords} total items` : 'Showing combined results'}
-                 </Text>
-                 {/* Indicate if more might be available to load */}
-                 {(aicHasMoreForAll || hamHasMoreForAll) && !loading &&
-                    <Text style={styles.moreAvailableText}>(Scroll down for more)</Text>
+                 {/* Single Source Info */}
+                 {selectedSource !== 'all' &&
+                    <>
+                        <Text style={styles.pageInfo}>
+                            {totalRecords > 0 ? `${totalRecords} total items` : 'Loading info...'}
+                        </Text>
+                        {/* Indicate if more might be available */}
+                        {(currentPage < totalPages) && !loading &&
+                            <Text style={styles.moreAvailableText}>(Scroll down for more)</Text>
+                        }
+                        {/* Indicate if all known items loaded */}
+                        {(currentPage >= totalPages) && !loading &&
+                            <Text style={styles.moreAvailableText}>(All items loaded)</Text>
+                        }
+                    </>
                  }
-                 {/* Indicate if all known items loaded */}
-                 {!aicHasMoreForAll && !hamHasMoreForAll && !loading &&
-                    <Text style={styles.moreAvailableText}>(All items loaded)</Text>
+                 {/* 'All' Source Info */}
+                 {selectedSource === 'all' &&
+                    <>
+                        <Text style={styles.pageInfo}>
+                            {totalRecords > 0 ? `Approx. ${totalRecords} total items` : 'Showing combined results'}
+                        </Text>
+                        {/* Indicate if more might be available */}
+                        {(aicHasMoreForAll || hamHasMoreForAll) && !loading &&
+                            <Text style={styles.moreAvailableText}>(Scroll down for more)</Text>
+                        }
+                        {/* Indicate if all known items loaded */}
+                        {!aicHasMoreForAll && !hamHasMoreForAll && !loading &&
+                            <Text style={styles.moreAvailableText}>(All items loaded)</Text>
+                        }
+                    </>
                  }
             </View>
        )}
