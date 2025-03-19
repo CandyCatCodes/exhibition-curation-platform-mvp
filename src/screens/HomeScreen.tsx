@@ -288,26 +288,22 @@ export default function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     // Always load page 1 when the source changes
     console.log(`Source changed to: ${selectedSource}. Loading page 1.`);
-    // Reset single-source page to 1 before loading
+    // Reset single-source page state before loading
     setCurrentPage(1);
+    // Reset 'all' source page state as well for consistency when switching sources
+    setAicPageForAll(1);
+    setHamPageForAll(1);
+    setAicHasMoreForAll(true); // Assume more might be available on source change
+    setHamHasMoreForAll(true); // Assume more might be available on source change
+    // Trigger the load for page 1 of the new source
     loadArtworks(selectedSource, 1);
     // Reset sort when source changes? Optional.
     // setSortField(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSource]); // Only trigger on source change
 
-  // Effect for single-source pagination changes (Button clicks)
-  useEffect(() => {
-    // Only trigger pagination load if NOT 'all' source and page > 0 (page is 1-based)
-    // Also ensure loadArtworks isn't called redundantly on initial source change (page will be 1)
-    if (selectedSource !== 'all' && currentPage > 0) {
-        console.log(`Current page changed to: ${currentPage} for source ${selectedSource}. Loading.`);
-        // We don't need to check if page is > 1 here, loadArtworks handles clearing/setting based on page
-        loadArtworks(selectedSource, currentPage);
-    }
-    // Do NOT add loadArtworks to dependencies here, it causes loops.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, selectedSource]); // React to currentPage changes, but conditionally act based on selectedSource
+
+  // REMOVED the useEffect hook that depended on [currentPage, selectedSource] as it conflicted with handleLoadMore
 
 
   const handleSourceChange = (newSource: ApiSource | 'all') => {
