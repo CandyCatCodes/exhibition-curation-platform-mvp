@@ -44,20 +44,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [aicHasMoreForAll, setAicHasMoreForAll] = useState<boolean>(true);
   const [hamHasMoreForAll, setHamHasMoreForAll] = useState<boolean>(true);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
-  const [webContentHeight, setWebContentHeight] = useState<number | null>(null);
   const listRef = useRef<FlatList>(null);
-
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-
-    const updateHeight = () => {
-      setWebContentHeight(window.innerHeight - 150);
-    };
-
-    updateHeight();
-    window.addEventListener("resize", updateHeight);
-    return () => window.removeEventListener("resize", updateHeight);
-  }, []);
 
   const loadArtworks = useCallback(
     async (source: ApiSource | "all", page: number) => {
@@ -505,56 +492,29 @@ export default function HomeScreen({ navigation }: Props) {
         </Text>
       )}
 
-      {Platform.OS === "web" ? (
-        <ScrollView
-          style={{ flex: 1, height: webContentHeight || 500 }}
-          onScroll={({ nativeEvent }) => {
-            const { layoutMeasurement, contentOffset, contentSize } =
-              nativeEvent;
-            const paddingToBottom = 20;
-            if (
-              layoutMeasurement.height + contentOffset.y >=
-              contentSize.height - paddingToBottom
-            ) {
-              handleLoadMore();
-            }
-          }}
-          scrollEventThrottle={400}
-        >
-          {sortedArtworks.map((item) => (
-            <View key={item.id}>{renderArtwork({ item })}</View>
-          ))}
-          {isLoadingMore && (
+      {/* Use FlatList for all platforms */}
+      <FlatList
+        ref={listRef}
+        data={sortedArtworks}
+        renderItem={renderArtwork}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContentContainer}
+        ListEmptyComponent={
+          !loading && !isLoadingMore ? (
+            <Text style={styles.emptyListText}>No artworks found.</Text>
+          ) : null
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5} // Adjust threshold if needed for web
+        ListFooterComponent={
+          isLoadingMore ? (
             <ActivityIndicator
               style={styles.footerLoadingIndicator}
               size="small"
             />
-          )}
-        </ScrollView>
-      ) : (
-        <FlatList
-          ref={listRef}
-          data={sortedArtworks}
-          renderItem={renderArtwork}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContentContainer}
-          ListEmptyComponent={
-            !loading && !isLoadingMore ? (
-              <Text style={styles.emptyListText}>No artworks found.</Text>
-            ) : null
-          }
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={
-            isLoadingMore ? (
-              <ActivityIndicator
-                style={styles.footerLoadingIndicator}
-                size="small"
-              />
-            ) : null
-          }
-        />
-      )}
+          ) : null
+        }
+      />
 
       {!isLoadingMore && artworks.length > 0 && (
         <View style={styles.paginationContainer}>
@@ -606,10 +566,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f5f5f5",
-    ...(Platform.OS === "web" && {
-      height: "100vh",
-      overflow: "hidden",
-    }),
+    // Web-specific height/overflow removed to allow natural page scrolling
   },
   center: {
     alignItems: "center",
