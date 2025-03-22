@@ -434,10 +434,8 @@ export default function HomeScreen({ navigation }: Props) {
     );
   }
 
-  const RootComponent = Platform.OS === 'web' ? ScrollView : View;
-
   return (
-    <RootComponent style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.sourceSelector}>
         <Button
           title="All"
@@ -560,12 +558,13 @@ export default function HomeScreen({ navigation }: Props) {
       {loading && artworks.length > 0 && (
         <ActivityIndicator style={styles.pageLoadingIndicator} />
       )}
-    </RootComponent>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
     backgroundColor: "#f5f5f5",
     // Web-specific height/overflow removed to allow natural page scrolling
   },
