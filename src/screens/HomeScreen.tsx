@@ -506,6 +506,7 @@ export default function HomeScreen({ navigation }: Props) {
         }
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5} // Adjust threshold if needed for web
+        showsVerticalScrollIndicator={true} // Explicitly enable scrollbar
         ListFooterComponent={
           isLoadingMore ? (
             <ActivityIndicator
