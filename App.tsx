@@ -20,7 +20,12 @@ export default function App() {
   return (
     <ExhibitionProvider>
       <NavigationContainer>
-        <Stack.Navigator initialRouteName="Home">
+        <Stack.Navigator
+          initialRouteName="Home"
+          screenOptions={{
+            cardStyle: { flex: 1 }, // Ensure screen containers have bounded height
+          }}
+        >
           <Stack.Screen
             name="Home"
             component={HomeScreen}
