@@ -153,7 +153,7 @@ const getAicArtworks = async (
   });
   const url = `${AIC_API_URL}?${queryParams.toString()}`;
 
-  console.log(`Fetching AIC artworks from: ${url}`);
+  // console.log(`Fetching AIC artworks from: ${url}`);
 
   try {
     const response = await fetch(url);
@@ -161,10 +161,10 @@ const getAicArtworks = async (
       throw new Error(`AIC API error! status: ${response.status}`);
     }
     const data: AicApiResponse = await response.json();
-    console.log("Fetched AIC artworks:", data.data.length);
+    // console.log("Fetched AIC artworks:", data.data.length);
     return data;
   } catch (error) {
-    console.error("Failed to fetch AIC artworks:", error);
+    // console.error("Failed to fetch AIC artworks:", error);
     throw error;
   }
 };
@@ -174,9 +174,9 @@ const getHamArtworks = async (
   limit: number = 10,
 ): Promise<HamApiResponse> => {
   if (!HAM_API_KEY) {
-    console.error(
-      "Harvard API Key (EXPO_PUBLIC_HARVARD_API_KEY) is missing or undefined.",
-    );
+    // console.error(
+    //   "Harvard API Key (EXPO_PUBLIC_HARVARD_API_KEY) is missing or undefined.",
+    // );
     throw new Error(
       "Harvard API Key is missing. Please check your .env file and restart the server.",
     );
@@ -198,23 +198,23 @@ const getHamArtworks = async (
     const response = await fetch(url);
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error(
-        `HAM API error! status: ${response.status}, response: ${errorBody}`,
-      );
+      // console.error(
+      //   `HAM API error! status: ${response.status}, response: ${errorBody}`,
+      // );
       throw new Error(`HAM API error! status: ${response.status}`);
     }
     const data: HamApiResponse = await response.json();
     if ((data as any).error) {
-      console.error("HAM API returned an error object:", (data as any).error);
+      // console.error("HAM API returned an error object:", (data as any).error);
       throw new Error(`HAM API returned error: ${(data as any).error}`);
     }
-    console.log("Fetched HAM artworks:", data.records?.length || 0);
+    // console.log("Fetched HAM artworks:", data.records?.length || 0);
     if (!data.records) {
       data.records = [];
     }
     return data;
   } catch (error) {
-    console.error("Failed to fetch or parse HAM artworks:", error);
+    // console.error("Failed to fetch or parse HAM artworks:", error);
     throw error;
   }
 };
@@ -262,7 +262,7 @@ const getAicArtworkDetails = async (
     "id,title,artist_title,image_id,description,dimensions,date_display,medium_display";
   const url = `${AIC_API_URL}/${id}?fields=${fields}`;
 
-  console.log(`Fetching AIC artwork details from: ${url}`);
+  // console.log(`Fetching AIC artwork details from: ${url}`);
 
   try {
     const response = await fetch(url);
@@ -270,10 +270,10 @@ const getAicArtworkDetails = async (
       throw new Error(`AIC API error! status: ${response.status}`);
     }
     const data: AicApiDetailResponse = await response.json();
-    console.log("Fetched AIC artwork details for ID:", id);
+    // console.log("Fetched AIC artwork details for ID:", id);
     return data;
   } catch (error) {
-    console.error(`Failed to fetch AIC artwork details for ID ${id}:`, error);
+    // console.error(`Failed to fetch AIC artwork details for ID ${id}:`, error);
     throw error;
   }
 };
@@ -302,7 +302,7 @@ export const getArtworks = async (
     if (source === "aic" || source === "all") {
       const aicLimit = source === "all" ? Math.ceil(limit * 0.6) : limit;
       const aicPage = source === "all" ? 1 : page;
-      console.log(`Requesting AIC: page=${aicPage}, limit=${aicLimit}`);
+      // console.log(`Requesting AIC: page=${aicPage}, limit=${aicLimit}`);
       const aicResponse = await getAicArtworks(aicPage, aicLimit);
       const mappedAic = aicResponse.data.map((item) =>
         mapAicToUnified(item, aicResponse.config.iiif_url),
@@ -319,12 +319,12 @@ export const getArtworks = async (
 
     if (source === "ham" || source === "all") {
       if (!HAM_API_KEY) {
-        console.warn("Harvard API Key missing, skipping HAM source.");
+        // console.warn("Harvard API Key missing, skipping HAM source.");
       } else {
         try {
           const hamLimit = source === "all" ? Math.ceil(limit * 0.6) : limit;
           const hamPage = source === "all" ? 1 : page;
-          console.log(`Requesting HAM: page=${hamPage}, limit=${hamLimit}`);
+          // console.log(`Requesting HAM: page=${hamPage}, limit=${hamLimit}`);
           const hamResponse = await getHamArtworks(hamPage, hamLimit);
           const mappedHam = hamResponse.records.map(mapHamToUnified);
           unifiedArtworks = unifiedArtworks.concat(mappedHam);
@@ -336,10 +336,10 @@ export const getArtworks = async (
             totalRecords += hamResponse.info.totalrecords;
           }
         } catch (hamError) {
-          console.error(
-            "Failed to fetch or process HAM artworks, proceeding without them:",
-            hamError,
-          );
+          // console.error(
+          //   "Failed to fetch or process HAM artworks, proceeding without them:",
+          //   hamError,
+          // );
           if (source === "all" && unifiedArtworks.length === 0) {
             throw hamError;
           }
@@ -354,13 +354,13 @@ export const getArtworks = async (
       totalPages = Math.ceil(totalRecords / resultsPerPage);
     }
   } catch (error) {
-    console.error(`Error fetching artworks for source '${source}':`, error);
+    // console.error(`Error fetching artworks for source '${source}':`, error);
     throw error;
   }
 
-  console.log(
-    `Returning ${unifiedArtworks.length} artworks. Pagination: page=${currentPage}, totalPages=${totalPages}, totalRecords=${totalRecords}`,
-  );
+  // console.log(
+  //   `Returning ${unifiedArtworks.length} artworks. Pagination: page=${currentPage}, totalPages=${totalPages}, totalRecords=${totalRecords}`,
+  // );
 
   return {
     artworks: unifiedArtworks,
@@ -373,13 +373,13 @@ export const getArtworkDetails = async (
 ): Promise<UnifiedArtworkDetail> => {
   const parts = prefixedId.split("-");
   if (parts.length < 2) {
-    console.error(`Invalid prefixed ID format: ${prefixedId}`);
+    // console.error(`Invalid prefixed ID format: ${prefixedId}`);
     throw new Error(`Invalid prefixed ID format: ${prefixedId}`);
   }
   const source = parts[0] as ApiSource;
   const id = parts.slice(1).join("-");
 
-  console.log(`Fetching details for source: ${source}, ID: ${id}`);
+  // console.log(`Fetching details for source: ${source}, ID: ${id}`);
 
   try {
     if (source === "aic") {
@@ -392,11 +392,11 @@ export const getArtworkDetails = async (
       const hamResponse = await getHamArtworkDetails(id);
       return mapHamDetailToUnified(hamResponse);
     } else {
-      console.error(`Unknown source in prefixed ID: ${source}`);
+      // console.error(`Unknown source in prefixed ID: ${source}`);
       throw new Error(`Unknown source in prefixed ID: ${source}`);
     }
   } catch (error) {
-    console.error(`Failed to get details for ${prefixedId}:`, error);
+    // console.error(`Failed to get details for ${prefixedId}:`, error);
     throw error;
   }
 };
@@ -405,9 +405,9 @@ const getHamArtworkDetails = async (
   objectId: string,
 ): Promise<HamApiDetailResponse> => {
   if (!HAM_API_KEY) {
-    console.error(
-      "Harvard API Key (EXPO_PUBLIC_HARVARD_API_KEY) is missing or undefined.",
-    );
+    // console.error(
+    //   "Harvard API Key (EXPO_PUBLIC_HARVARD_API_KEY) is missing or undefined.",
+    // );
     throw new Error("Harvard API Key is missing. Cannot fetch details.");
   }
   const fields =
@@ -418,32 +418,32 @@ const getHamArtworkDetails = async (
   });
   const url = `${HAM_API_URL}/${objectId}?${queryParams.toString()}`;
 
-  console.log(`Fetching HAM artwork details from: ${url}`);
+  // console.log(`Fetching HAM artwork details from: ${url}`);
 
   try {
     const response = await fetch(url);
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error(
-        `HAM API detail error! status: ${response.status}, response: ${errorBody}`,
-      );
+      // console.error(
+      //   `HAM API detail error! status: ${response.status}, response: ${errorBody}`,
+      // );
       throw new Error(`HAM API error! status: ${response.status}`);
     }
     const data: HamApiDetailResponse = await response.json();
     if ((data as any).error) {
-      console.error(
-        "HAM API detail returned an error object:",
-        (data as any).error,
-      );
+      // console.error(
+      //   "HAM API detail returned an error object:",
+      //   (data as any).error,
+      // );
       throw new Error(`HAM API returned error: ${(data as any).error}`);
     }
-    console.log("Fetched HAM artwork details for ID:", objectId);
+    // console.log("Fetched HAM artwork details for ID:", objectId);
     return data;
   } catch (error) {
-    console.error(
-      `Failed to fetch or parse HAM artwork details for ID ${objectId}:`,
-      error,
-    );
+    // console.error(
+    //   `Failed to fetch or parse HAM artwork details for ID ${objectId}:`,
+    //   error,
+    // );
     throw error;
   }
 };
