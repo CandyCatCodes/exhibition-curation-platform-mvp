@@ -192,7 +192,7 @@ const getHamArtworks = async (
   });
   const url = `${HAM_API_URL}?${queryParams.toString()}`;
 
-  console.log(`Fetching HAM artworks from: ${url}`);
+  //console.log(`Fetching HAM artworks from: ${url}`);
 
   try {
     const response = await fetch(url);
